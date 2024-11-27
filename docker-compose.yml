@@ -1,10 +1,12 @@
+version: '3.8'
+
 services:
   mysql:
     image: mysql:8.0
     container_name: fire_extinguisher_mysql
     environment:
-      MYSQL_ROOT_PASSWORD: Pwd4329uskbfsbjsvbdv
-      MYSQL_DATABASE: fire_existinguisher_db
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+      MYSQL_DATABASE: ${MYSQL_DATABASE}
     ports:
       - '3306:3306'
     volumes:
@@ -18,14 +20,17 @@ services:
       dockerfile: Dockerfile
     container_name: fire_extinguisher_backend
     environment:
-      - DB_HOST=mysql
-      - DB_PORT=3306
-      - DB_USERNAME=root
-      - DB_PASSWORD=Pwd4329uskbfsbjsvbdv
-      - DB_NAME=fire_existinguisher_db
-      - NODE_ENV=production
+      - DB_HOST=${DB_HOST}
+      - DB_PORT=${DB_PORT}
+      - DB_USERNAME=${DB_USERNAME}
+      - DB_PASSWORD=${DB_PASSWORD}
+      - DB_NAME=${DB_NAME}
+      - NODE_ENV=${NODE_ENV}
     depends_on:
       - mysql
+    volumes:
+      - ./:/usr/src/fire_extinguisher_bn
+      - /usr/src/fire_extinguisher_bn/node_modules
     ports:
       - '3000:3000'
     networks:

@@ -1,7 +1,7 @@
-type Query {
-  hello: String
-}
+# ------------------------------------------------------
+# THIS FILE WAS AUTOMATICALLY GENERATED (DO NOT MODIFY)
+# ------------------------------------------------------
 
-type Mutation {
-  createHelloMessage(message: String!): String
+type Query {
+  hello: String!
 }

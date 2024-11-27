@@ -22,9 +22,9 @@ import { AppResolver } from './AppResolver';
     GraphQLModule.forRoot<ApolloDriverConfig>({
       driver: ApolloDriver,
       autoSchemaFile: join(process.cwd(), 'src/schema.gql'),
-      debug: process.env.NODE_ENV !== 'production',
-      playground: process.env.NODE_ENV !== 'production',
-      introspection: process.env.NODE_ENV !== 'production',
+      debug: process.env.NODE_ENV !== 'prod',
+      playground: process.env.NODE_ENV !== 'prod',
+      introspection: process.env.NODE_ENV !== 'prod',
       subscriptions: {
         'graphql-ws': true,
         'subscriptions-transport-ws': true,
