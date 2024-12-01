@@ -3,11 +3,11 @@ import { MailerService } from '@nestjs-modules/mailer';
 
 @Injectable()
 export class EmailService {
-  private readonly logger = new Logger(EmailService.name);
+  private readonly logger = new Logger(EmailService.name, { timestamp: true });
 
   constructor(private readonly mailerService: MailerService) {}
 
-  async sendWelcomeEmail(to: string, username: string) {
+  async sendWelcomeEmail(to: string) {
     try {
       await this.mailerService.sendMail({
         to,

@@ -39,7 +39,7 @@ export class UserService {
     });
 
     try {
-      await this.emailService.sendWelcomeEmail(email, 'New user!');
+      await this.emailService.sendWelcomeEmail(email);
     } catch (emailError) {
       console.error('Failed to send welcome email:', emailError);
     }

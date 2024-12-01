@@ -17,14 +17,8 @@ services:
       context: .
       dockerfile: Dockerfile
     container_name: fire_extinguisher_backend
-    environment:
-      - DB_HOST=${DB_HOST}
-      - DB_PORT=${DB_PORT}
-      - DB_USERNAME=${DB_USERNAME}
-      - DB_PASSWORD=${DB_PASSWORD}
-      - DB_NAME=${DB_NAME}
-      - NODE_ENV=${NODE_ENV}
-      - SALT_ROUNDS=${SALT_ROUNDS}
+    env_file:
+      - .env
     depends_on:
       - mysql
     volumes:
