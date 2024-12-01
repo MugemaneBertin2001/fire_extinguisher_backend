@@ -1,8 +1,10 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { MailerService } from '@nestjs-modules/mailer';
 
 @Injectable()
 export class EmailService {
+  private readonly logger = new Logger(EmailService.name);
+
   constructor(private readonly mailerService: MailerService) {}
 
   async sendWelcomeEmail(to: string, username: string) {
@@ -12,27 +14,10 @@ export class EmailService {
         subject: 'Welcome to FireTrack360',
         text: 'Welcome to FireTrack360',
       });
+      this.logger.log(`Welcome email sent to ${to}`);
     } catch (error) {
-      console.error('Email sending failed:', error);
-      throw new Error('Failed to send welcome email');
-    }
-  }
-
-  async sendPasswordResetEmail(to: string, resetToken: string) {
-    try {
-      const resetLink = `${process.env.FRONTEND_URL}/reset-password?token=${resetToken}`;
-
-      await this.mailerService.sendMail({
-        to,
-        subject: 'Password Reset for FireTrack360',
-        template: 'password-reset',
-        context: {
-          resetLink,
-        },
-      });
-    } catch (error) {
-      console.error('Password reset email failed:', error);
-      throw new Error('Failed to send password reset email');
+      this.logger.error('Email sending failed:', error.stack);
+      throw new Error(`Failed to send welcome email: ${error.message}`);
     }
   }
 }
