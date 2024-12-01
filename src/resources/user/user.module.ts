@@ -7,9 +7,10 @@ import { DataSource } from 'typeorm';
 import { UserResolver } from './user.resolver';
 import { UserService } from './user.service';
 import { HashingService } from './hashing.service';
+import { EmailModule } from '../email/email.module';
 
 @Module({
-  imports: [DatabaseModule, TypeOrmModule.forFeature([User])],
+  imports: [DatabaseModule, TypeOrmModule.forFeature([User]), EmailModule],
   providers: [
     {
       provide: UserRepository,

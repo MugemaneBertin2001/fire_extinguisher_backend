@@ -17,7 +17,7 @@ This is a private repository. Ensure you have:
 
 ### Cloning the Repository
 ```bash
-git clone git@github.com:satorrwanda/firetrack360.git
+git clone https://github.com/satorrwanda/FireTrack360-backend.git
 # or use the specific private repository URL provided to you
 cd firetrack360
 ```
