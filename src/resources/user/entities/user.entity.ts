@@ -1,5 +1,16 @@
 import { Entity, PrimaryGeneratedColumn, Column, Unique } from 'typeorm';
-import { ObjectType, Field } from '@nestjs/graphql';
+import { ObjectType, Field, registerEnumType } from '@nestjs/graphql';
+
+export enum UserRole {
+  ADMIN = 'Admin',
+  MANAGER = 'Manager',
+  CLIENT = 'Client',
+  TECHNICIAN = 'Technician',
+}
+
+registerEnumType(UserRole, {
+  name: 'UserRole',
+});
 
 @ObjectType()
 @Entity('users')
@@ -16,6 +27,18 @@ export class User {
   @Column()
   @Field()
   password: string;
+
+  @Column({ default: false })
+  @Field()
+  verified: boolean;
+
+  @Column({ nullable: true })
+  @Field({ nullable: true })
+  verificationToken?: string;
+
+  @Column({ type: 'enum', enum: UserRole, nullable: false })
+  @Field(() => UserRole)
+  role: UserRole;
 
   @Column({ unique: true, nullable: true })
   phone?: string;

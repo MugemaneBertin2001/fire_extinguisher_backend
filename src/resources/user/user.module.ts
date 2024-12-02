@@ -8,9 +8,16 @@ import { UserResolver } from './user.resolver';
 import { UserService } from './user.service';
 import { HashingService } from './hashing.service';
 import { EmailModule } from '../email/email.module';
+import { AuthJwtService } from './jwt.service';
+import { JwtModule } from '@nestjs/jwt';
 
 @Module({
-  imports: [DatabaseModule, TypeOrmModule.forFeature([User]), EmailModule],
+  imports: [
+    DatabaseModule,
+    TypeOrmModule.forFeature([User]),
+    EmailModule,
+    JwtModule,
+  ],
   providers: [
     {
       provide: UserRepository,
@@ -22,7 +29,8 @@ import { EmailModule } from '../email/email.module';
     UserService,
     HashingService,
     UserResolver,
+    AuthJwtService,
   ],
-  exports: [UserService,HashingService, UserRepository],
+  exports: [UserService, HashingService, UserRepository, AuthJwtService],
 })
 export class UserModule {}
