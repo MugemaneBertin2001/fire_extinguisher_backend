@@ -46,3 +46,15 @@ export class RegistrationFields {
   password: string;
 }
 
+@InputType()
+export class VerificationFields {
+  @Field()
+  @IsNotEmpty()
+  @IsEmail()
+  email: string;
+
+  @Field()
+  @IsNotEmpty()
+  @MinLength(6)
+  otp: string;
+}

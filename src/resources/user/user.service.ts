@@ -12,6 +12,7 @@ import { EmailService } from '../email/email.service';
 import { AuthJwtService } from './jwt.service';
 import * as crypto from 'crypto';
 import { UserRole } from './entities/user.entity';
+import { LoginResponse } from './dto/login-user.input';
 
 @Injectable()
 export class UserService {
@@ -103,7 +104,7 @@ export class UserService {
       }
       user.verified = true;
       this.userRepository.updateUser(user.id, user);
-      this.emailService.sendConfirmationEmail(user.email)
+      this.emailService.sendConfirmationEmail(user.email);
 
       return {
         message: 'User successfully verified',
@@ -116,5 +117,54 @@ export class UserService {
       }
       throw new UnauthorizedException('Invalid or expired verification token');
     }
+  }
+
+  /**
+   * Login a user
+   * @param email User's email
+   * @param password User's password
+   * @returns JWT token if login is successful
+   */
+  async login(email: string, password: string): Promise<LoginResponse> {
+    const user = await this.userRepository.findByIdentifier(email);
+
+    if (!user) {
+      throw new UnauthorizedException('Invalid email or password');
+    }
+
+    const isPasswordValid = await this.hashingService.comparePassword(
+      password,
+      user.password,
+    );
+
+    if (!isPasswordValid) {
+      throw new UnauthorizedException('Invalid email or password');
+    }
+
+    if (!user.verified) {
+      throw new UnauthorizedException(
+        'Please verify your email before logging in',
+      );
+    }
+
+    const accessToken = this.AuthJwtService.generateToken(
+      {
+        email: user.email,
+        role: user.role,
+      },
+      process.env.JWT_EXPIRES_IN,
+    );
+
+    const refreshToken = this.AuthJwtService.generateToken(
+      { id: user.id, email: user.email, role: user.role },
+      '7d',
+    );
+
+    return {
+      accessToken,
+      refreshToken,
+      message: 'Login successful',
+      status: 200,
+    };
   }
 }
