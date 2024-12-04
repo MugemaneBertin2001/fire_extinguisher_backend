@@ -44,6 +44,11 @@ export class RegistrationFields {
   @IsNotEmpty()
   @MinLength(6)
   password: string;
+
+  @Field()
+  @IsNotEmpty()
+  @MinLength(6)
+  confirmPassword: string;
 }
 
 @InputType()

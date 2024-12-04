@@ -34,7 +34,7 @@ export class User {
 
   @Column({ nullable: true })
   @Field({ nullable: true })
-  verificationToken?: string;
+  verificationToken: string;
 
   @Column({ type: 'enum', enum: UserRole, nullable: false })
   @Field(() => UserRole)

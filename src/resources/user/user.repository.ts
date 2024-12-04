@@ -72,7 +72,15 @@ export class UserRepository {
     try {
       return await queryRunner.manager.findOne(User, {
         where: { [field]: value },
-        select: ['id', 'email', 'phone', 'password'],
+        select: [
+          'id',
+          'email',
+          'phone',
+          'password',
+          'verificationToken',
+          'verified',
+          'role',
+        ],
       });
     } finally {
       await queryRunner.release();
@@ -80,7 +88,8 @@ export class UserRepository {
   }
 
   async findByEmail(email: string): Promise<User | null> {
-    return this.findByField('email', email);
+    const user = await this.findByField('email', email);
+    return user;
   }
 
   async findByPhone(phone: string): Promise<User | null> {
@@ -163,5 +172,4 @@ export class UserRepository {
       await queryRunner.release();
     }
   }
- 
 }

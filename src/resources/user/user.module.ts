@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { Module, Logger } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { UserRepository } from './user.repository';
 import { User } from './entities/user.entity';
@@ -30,6 +30,7 @@ import { JwtModule } from '@nestjs/jwt';
     HashingService,
     UserResolver,
     AuthJwtService,
+    Logger,
   ],
   exports: [UserService, HashingService, UserRepository, AuthJwtService],
 })

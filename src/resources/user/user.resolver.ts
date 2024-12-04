@@ -5,9 +5,14 @@ import {
   RegistrationFields,
   VerificationFields,
 } from './dto/create-user.input';
-import { Response } from './dto/response.input';
+import { Response, VerificationResponse } from './dto/response.input';
 import { HttpCode, HttpStatus } from '@nestjs/common';
-import { LoginInput, LoginResponse } from './dto/login-user.input';
+import {
+  LoginInput,
+  LoginResponse,
+  VerifyLoginInput,
+} from './dto/login-user.input';
+import { NewPasswordInput } from './dto/new-password.Input';
 
 @Resolver(() => User)
 export class UserResolver {
@@ -27,18 +32,45 @@ export class UserResolver {
   async verifyAccount(
     @Args('verificationFields') verificationFields: VerificationFields,
   ): Promise<Response> {
-    const isVerified = await this.userService.verifyOtp(
+    const verifiedUser = await this.userService.verifyAccount(
       verificationFields.email,
       verificationFields.otp,
     );
-    return isVerified;
+    return verifiedUser;
+  }
+
+  @Mutation(() => Response)
+  async login(@Args('loginInput') loginInput: LoginInput): Promise<Response> {
+    const { email, password } = loginInput;
+    return this.userService.login(email, password);
   }
 
   @Mutation(() => LoginResponse)
-  async login(
-    @Args('loginInput') loginInput: LoginInput,
+  async verifyLogin(
+    @Args('verifyLoginInput') verifyLoginInput: VerifyLoginInput,
   ): Promise<LoginResponse> {
-    const { email, password } = loginInput;
-    return this.userService.login(email, password);
+    const { email, otp } = verifyLoginInput;
+    return this.userService.verifyLogin(email, otp);
+  }
+
+  @Mutation(() => Response)
+  async forgetPassword(
+    @Args('userEmail') userEmail: string,
+  ): Promise<Response> {
+    return this.userService.forgetPassword(userEmail);
+  }
+
+  @Mutation(() => VerificationResponse)
+  async verifyPasswordForget(
+    @Args('verificationFields') verificationFields: VerificationFields,
+  ): Promise<VerificationResponse> {
+    const { email, otp } = verificationFields;
+    return await this.userService.verifyPasswordReset(email, otp);
+  }
+  @Mutation(() => Response)
+  async replaceForgotPassword(
+    @Args('newPasswordInput') newPasswordInput: NewPasswordInput,
+  ): Promise<Response> {
+    return await this.userService.replaceForgotPassword(newPasswordInput);
   }
 }

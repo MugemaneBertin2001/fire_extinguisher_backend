@@ -50,4 +50,50 @@ export class EmailService {
       throw new Error(`Failed to send confirmation email: ${error.message}`);
     }
   }
+
+  /**
+   * Sends a password reset email with an OTP to the specified email address.
+   *
+   * @param email - The recipient's email address.
+   * @param otp - The one-time password for resetting the user's password.
+   * @throws Error if the email sending fails.
+   */
+  async sendForgetPasswordEmail(email: string, otp: string): Promise<void> {
+    try {
+      const htmlTemplate =
+        this.emailTemplateService.generateForgetPasswordTemplate(email, otp);
+      await this.mailerService.sendMail({
+        to: email,
+        subject: 'Password Reset Request',
+        html: htmlTemplate,
+      });
+    } catch (error) {
+      this.logger.error('Error sending email:', error.message);
+      throw new Error('Failed to send password reset email.');
+    }
+  }
+  /**
+   * Sends a password reset email with an OTP to the specified email address.
+   *
+   * @param email - The recipient's email address.
+   * @param otp - The one-time password for resetting the user's password.
+   * @throws Error if the email sending fails.
+   */
+  async sendTwoFactorAuthEmail(email: string, otp: string): Promise<void> {
+    try {
+      const htmlTemplate =
+        this.emailTemplateService.generateTwoFactorAuthEmailTemplate(
+          email,
+          otp,
+        );
+      await this.mailerService.sendMail({
+        to: email,
+        subject: 'Password Reset Request',
+        html: htmlTemplate,
+      });
+    } catch (error) {
+      this.logger.error('Error sending email:', error.message);
+      throw new Error('Failed to send password reset email.');
+    }
+  }
 }

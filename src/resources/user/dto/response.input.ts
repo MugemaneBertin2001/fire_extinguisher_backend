@@ -8,3 +8,10 @@ export class Response {
   @Field()
   status: number;
 }
+
+
+@ObjectType()
+export class VerificationResponse extends Response {
+  @Field()
+  verificationToken: string;
+}

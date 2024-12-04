@@ -27,3 +27,15 @@ export class LoginResponse {
   @Field(() => Int)
   status: number;
 }
+
+@InputType()
+export class VerifyLoginInput {
+  @IsEmail()
+  @Field()
+  email: string;
+
+  @IsString()
+  @MinLength(6)
+  @Field()
+  otp: string;
+}
