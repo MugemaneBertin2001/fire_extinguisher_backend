@@ -25,7 +25,6 @@ export const databaseProviders = [
         return dataSource;
       } catch (error) {
         logger.error('Database initialization failed', error);
-        throw error;
       }
     },
     inject: [ConfigService],

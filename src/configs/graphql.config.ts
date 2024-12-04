@@ -6,7 +6,7 @@ export const graphqlConfig: ApolloDriverConfig = {
   sortSchema: false,
   debug: process.env.NODE_ENV !== 'prod',
   playground: process.env.NODE_ENV !== 'prod',
-  introspection: process.env.NODE_ENV !== 'prod',
+  introspection: true,
   subscriptions: {
     'graphql-ws': true,
     'subscriptions-transport-ws': true,

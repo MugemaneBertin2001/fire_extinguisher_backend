@@ -35,7 +35,7 @@ export class AuthJwtService {
         secret: process.env.JWT_SECRET,
       });
     } catch (error) {
-      throw new Error('Invalid or expired token');
+      throw new Error('Invalid or expired token' + error);
     }
   }
 
