@@ -1,99 +1,121 @@
-<p align="center">
-  <a href="http://nestjs.com/" target="blank"><img src="https://nestjs.com/img/logo-small.svg" width="120" alt="Nest Logo" /></a>
-</p>
+# FireTrack360 Documentation
 
-[circleci-image]: https://img.shields.io/circleci/build/github/nestjs/nest/master?token=abc123def456
-[circleci-url]: https://circleci.com/gh/nestjs/nest
+## Project Overview
+FireTrack360 is a private NestJS-based application.
 
-  <p align="center">A progressive <a href="http://nodejs.org" target="_blank">Node.js</a> framework for building efficient and scalable server-side applications.</p>
-    <p align="center">
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/v/@nestjs/core.svg" alt="NPM Version" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/l/@nestjs/core.svg" alt="Package License" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/dm/@nestjs/common.svg" alt="NPM Downloads" /></a>
-<a href="https://circleci.com/gh/nestjs/nest" target="_blank"><img src="https://img.shields.io/circleci/build/github/nestjs/nest/master" alt="CircleCI" /></a>
-<a href="https://coveralls.io/github/nestjs/nest?branch=master" target="_blank"><img src="https://coveralls.io/repos/github/nestjs/nest/badge.svg?branch=master#9" alt="Coverage" /></a>
-<a href="https://discord.gg/G7Qnnhy" target="_blank"><img src="https://img.shields.io/badge/discord-online-brightgreen.svg" alt="Discord"/></a>
-<a href="https://opencollective.com/nest#backer" target="_blank"><img src="https://opencollective.com/nest/backers/badge.svg" alt="Backers on Open Collective" /></a>
-<a href="https://opencollective.com/nest#sponsor" target="_blank"><img src="https://opencollective.com/nest/sponsors/badge.svg" alt="Sponsors on Open Collective" /></a>
-  <a href="https://paypal.me/kamilmysliwiec" target="_blank"><img src="https://img.shields.io/badge/Donate-PayPal-ff3f59.svg" alt="Donate us"/></a>
-    <a href="https://opencollective.com/nest#sponsor"  target="_blank"><img src="https://img.shields.io/badge/Support%20us-Open%20Collective-41B883.svg" alt="Support us"></a>
-  <a href="https://twitter.com/nestframework" target="_blank"><img src="https://img.shields.io/twitter/follow/nestframework.svg?style=social&label=Follow" alt="Follow us on Twitter"></a>
-</p>
-  <!--[![Backers on Open Collective](https://opencollective.com/nest/backers/badge.svg)](https://opencollective.com/nest#backer)
-  [![Sponsors on Open Collective](https://opencollective.com/nest/sponsors/badge.svg)](https://opencollective.com/nest#sponsor)-->
+## Prerequisites
+- Node.js (recommended version 18.x or later)
+- pnpm
+- Docker (optional, for containerized deployment)
+- Access to the private repository
 
-## Description
+## Repository Access
+This is a private repository. Ensure you have:
+- Been granted access by the project administrator
+- Set up SSH keys or personal access token for GitHub/GitLab
+- Proper authentication configured for private repository cloning
 
-[Nest](https://github.com/nestjs/nest) framework TypeScript starter repository.
-
-## Project setup
-
+### Cloning the Repository
 ```bash
-$ pnpm install
+git clone https://github.com/satorrwanda/FireTrack360-backend.git
+# or use the specific private repository URL provided to you
+cd firetrack360
 ```
 
-## Compile and run the project
+## Local Setup
 
+### 1. Environment Configuration
+1. Copy the example environment file:
 ```bash
-# development
-$ pnpm run start
-
-# watch mode
-$ pnpm run start:dev
-
-# production mode
-$ pnpm run start:prod
+cp .env.example .env
 ```
 
-## Run tests
+2. Open `.env` and replace the placeholder values with your actual configuration:
+- `DATABASE_URL`: Connection string for your database
+- `JWT_SECRET`: A strong, unique secret key for authentication
+- `REDIS_HOST`: Redis server host
+- `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS`: Email service credentials
+- Any other environment-specific variables
 
+### 2. Install Dependencies
 ```bash
-# unit tests
-$ pnpm run test
-
-# e2e tests
-$ pnpm run test:e2e
-
-# test coverage
-$ pnpm run test:cov
+pnpm install
 ```
 
-## Deployment
+### 3. Database Setup
+Ensure your database is running and the connection details in `.env` are correct.
 
-When you're ready to deploy your NestJS application to production, there are some key steps you can take to ensure it runs as efficiently as possible. Check out the [deployment documentation](https://docs.nestjs.com/deployment) for more information.
-
-If you are looking for a cloud-based platform to deploy your NestJS application, check out [Mau](https://mau.nestjs.com), our official platform for deploying NestJS applications on AWS. Mau makes deployment straightforward and fast, requiring just a few simple steps:
-
+### 4. Start the Development Server
 ```bash
-$ pnpm install -g mau
-$ mau deploy
+pnpm dev
+# or
+pnpm start:dev
 ```
 
-With Mau, you can deploy your application in just a few clicks, allowing you to focus on building features rather than managing infrastructure.
+The application will be available at `http://localhost:3000/graphql`
 
-## Resources
+## Docker Deployment
 
-Check out a few resources that may come in handy when working with NestJS:
+### 1. Prerequisites
+- Docker
+- Docker Compose
 
-- Visit the [NestJS Documentation](https://docs.nestjs.com) to learn more about the framework.
-- For questions and support, please visit our [Discord channel](https://discord.gg/G7Qnnhy).
-- To dive deeper and get more hands-on experience, check out our official video [courses](https://courses.nestjs.com/).
-- Deploy your application to AWS with the help of [NestJS Mau](https://mau.nestjs.com) in just a few clicks.
-- Visualize your application graph and interact with the NestJS application in real-time using [NestJS Devtools](https://devtools.nestjs.com).
-- Need help with your project (part-time to full-time)? Check out our official [enterprise support](https://enterprise.nestjs.com).
-- To stay in the loop and get updates, follow us on [X](https://x.com/nestframework) and [LinkedIn](https://linkedin.com/company/nestjs).
-- Looking for a job, or have a job to offer? Check out our official [Jobs board](https://jobs.nestjs.com).
+### 2. Environment Configuration
+1. Copy the example environment file:
+```bash
+cp .env.example .env
+```
+
+2. Fill in the `.env` file with appropriate values
+
+### 3. Build and Run with Docker
+```bash
+docker-compose up --build
+```
+
+### 4. Stopping the Docker Deployment
+```bash
+docker-compose down
+```
+
+## Additional Commands
+
+### Running Tests
+```bash
+pnpm test
+```
+
+### Production Build
+```bash
+pnpm build
+```
+
+## Development Guidelines
+
+### Sensitive Information
+- Never commit sensitive information to the repository
+- Use `.env` for local configurations
+- Refer to `.env.example` for required environment variables
+- Ensure `.env` is added to `.gitignore`
+
+### Access Control
+- Contact the project administrator for:
+  - Repository access
+  - Environment configuration details
+  - Deployment credentials
+
+## Troubleshooting
+- Ensure all environment variables are correctly set
+- Verify you have the necessary access rights
+- Check Docker and Node.js versions
+- Verify network ports are not in use
+- If experiencing dependency issues:
+  ```bash
+  pnpm install --frozen-lockfile
+  ```
 
 ## Support
-
-Nest is an MIT-licensed open source project. It can grow thanks to the sponsors and support by the amazing backers. If you'd like to join them, please [read more here](https://docs.nestjs.com/support).
-
-## Stay in touch
-
-- Author - [Kamil Myśliwiec](https://twitter.com/kammysliwiec)
-- Website - [https://nestjs.com](https://nestjs.com/)
-- Twitter - [@nestframework](https://twitter.com/nestframework)
-
-## License
-
-Nest is [MIT licensed](https://github.com/nestjs/nest/blob/master/LICENSE).
+For any issues or questions, please contact:
+- Project Administrator
+- Technical Lead
+- DevOps Team
