@@ -3,7 +3,7 @@ import {
   ConflictException,
   NotFoundException,
 } from '@nestjs/common';
-import { DataSource, QueryRunner } from 'typeorm';
+import { DataSource } from 'typeorm';
 import { User } from './entities/user.entity';
 import { CreateUserInput } from './dto/create-user.input';
 
@@ -12,49 +12,29 @@ export class UserRepository {
   constructor(private readonly dataSource: DataSource) {}
 
   /**
-   * Creates and manages a QueryRunner instance
-   */
-  private async createQueryRunner(): Promise<QueryRunner> {
-    const queryRunner = this.dataSource.createQueryRunner();
-    await queryRunner.connect();
-    return queryRunner;
-  }
-
-  /**
    * Create a new user with unique constraint checks
    * @param createUserInput User creation data
    * @returns Created user
    */
   async createUser(createUserInput: CreateUserInput): Promise<User> {
-    const queryRunner = await this.createQueryRunner();
-    await queryRunner.startTransaction();
+    const { email, phone } = createUserInput;
 
-    try {
-      const { email, phone } = createUserInput;
+    // Check for existing user by email or phone
+    const existingUser = await this.dataSource.getRepository(User).findOne({
+      where: [{ email }, { phone }],
+    });
 
-      // Check for existing user by email or phone
-      const existingUser = await queryRunner.manager.findOne(User, {
-        where: [{ email }, { phone }],
-      });
-
-      if (existingUser) {
-        throw new ConflictException(
-          'A user with this email or phone number already exists',
-        );
-      }
-
-      // Create and save the new user
-      const user = queryRunner.manager.create(User, createUserInput);
-      const savedUser = await queryRunner.manager.save(user);
-
-      await queryRunner.commitTransaction();
-      return savedUser;
-    } catch (error) {
-      await queryRunner.rollbackTransaction();
-      throw error;
-    } finally {
-      await queryRunner.release();
+    if (existingUser) {
+      throw new ConflictException(
+        'A user with this email or phone number already exists',
+      );
     }
+
+    // Create and save the new user
+    const user = this.dataSource.getRepository(User).create(createUserInput);
+    const savedUser = await this.dataSource.getRepository(User).save(user);
+
+    return savedUser;
   }
 
   /**
@@ -67,24 +47,18 @@ export class UserRepository {
     field: 'email' | 'phone',
     value: string,
   ): Promise<User | null> {
-    const queryRunner = await this.createQueryRunner();
-
-    try {
-      return await queryRunner.manager.findOne(User, {
-        where: { [field]: value },
-        select: [
-          'id',
-          'email',
-          'phone',
-          'password',
-          'verificationToken',
-          'verified',
-          'role',
-        ],
-      });
-    } finally {
-      await queryRunner.release();
-    }
+    return await this.dataSource.getRepository(User).findOne({
+      where: { [field]: value },
+      select: [
+        'id',
+        'email',
+        'phone',
+        'password',
+        'verificationToken',
+        'verified',
+        'role',
+      ],
+    });
   }
 
   async findByEmail(email: string): Promise<User | null> {
@@ -102,18 +76,9 @@ export class UserRepository {
    * @returns User or null
    */
   async findByIdentifier(identifier: string): Promise<User | null> {
-    const queryRunner = await this.createQueryRunner();
-
-    try {
-      return await queryRunner.manager
-        .createQueryBuilder(User, 'user')
-        .where('user.email = :identifier OR user.phone = :identifier', {
-          identifier,
-        })
-        .getOne();
-    } finally {
-      await queryRunner.release();
-    }
+    return await this.dataSource.getRepository(User).findOne({
+      where: [{ email: identifier }, { phone: identifier }],
+    });
   }
 
   /**
@@ -122,21 +87,10 @@ export class UserRepository {
    * @returns Created users
    */
   async createUsers(users: CreateUserInput[]): Promise<User[]> {
-    const queryRunner = await this.createQueryRunner();
-    await queryRunner.startTransaction();
+    const userEntities = this.dataSource.getRepository(User).create(users);
+    const savedUsers = await this.dataSource.getRepository(User).save(userEntities);
 
-    try {
-      const userEntities = queryRunner.manager.create(User, users);
-      const savedUsers = await queryRunner.manager.save(userEntities);
-
-      await queryRunner.commitTransaction();
-      return savedUsers;
-    } catch (error) {
-      await queryRunner.rollbackTransaction();
-      throw error;
-    } finally {
-      await queryRunner.release();
-    }
+    return savedUsers;
   }
 
   /**
@@ -146,30 +100,19 @@ export class UserRepository {
    * @returns Updated user
    */
   async updateUser(id: string, updateData: Partial<User>): Promise<User> {
-    const queryRunner = await this.createQueryRunner();
-    await queryRunner.startTransaction();
+    const result = await this.dataSource.getRepository(User).update(id, updateData);
 
-    try {
-      const result = await queryRunner.manager.update(User, id, updateData);
-
-      if (result.affected === 0) {
-        throw new NotFoundException('User not found');
-      }
-
-      const updatedUser = await queryRunner.manager.findOne(User, {
-        where: { id },
-      });
-      if (!updatedUser) {
-        throw new NotFoundException('User not found after update');
-      }
-
-      await queryRunner.commitTransaction();
-      return updatedUser;
-    } catch (error) {
-      await queryRunner.rollbackTransaction();
-      throw error;
-    } finally {
-      await queryRunner.release();
+    if (result.affected === 0) {
+      throw new NotFoundException('User not found');
     }
+
+    const updatedUser = await this.dataSource.getRepository(User).findOne({
+      where: { id },
+    });
+    if (!updatedUser) {
+      throw new NotFoundException('User not found after update');
+    }
+
+    return updatedUser;
   }
 }
