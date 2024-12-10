@@ -1,4 +1,4 @@
-FROM node:21-alpine AS build
+FROM node:21-alpine AS build_production
 
 RUN corepack enable && corepack prepare pnpm@latest --activate
 
@@ -14,21 +14,8 @@ COPY . .
 
 RUN pnpm run build 
 
-FROM node:21-alpine AS production
-
-RUN corepack enable && corepack prepare pnpm@latest --activate
-
-WORKDIR /usr/src/app
-
-# Only copy production-necessary files
-COPY --from=build /usr/src/app/dist ./dist
-COPY --from=build /usr/src/app/package*.json ./
-COPY --from=build /usr/src/app/pnpm-lock.yaml ./
-
-# Install only production dependencies
-RUN pnpm install 
+ENV NODE_ENV=production
 
 EXPOSE 3000
 
-# Simplified CMD for production
 CMD ["pnpm", "run", "start:prod"]

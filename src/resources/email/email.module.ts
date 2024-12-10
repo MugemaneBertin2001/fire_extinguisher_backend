@@ -1,26 +1,10 @@
 import { Module } from '@nestjs/common';
-import { MailerModule } from '@nestjs-modules/mailer';
 import { EmailService } from './email.service';
 import { EmailTemplateService } from './email-template.service';
+import { HttpModule, HttpService } from '@nestjs/axios';
 
 @Module({
-  imports: [
-    MailerModule.forRoot({
-      transport: {
-        host: process.env.SMTP_HOST,
-        port: parseInt(process.env.SMTP_PORT || '587'),
-        secure: process.env.SMTP_SECURE === 'false',
-        auth: {
-          user: process.env.SMTP_USER,
-          pass: process.env.SMTP_PASS,
-        },
-      },
-      defaults: {
-        from:
-          process.env.EMAIL_FROM || '"FireTrack360" <noreply@firetrack360.com>',
-      },
-    }),
-  ],
+  imports:[HttpModule],
   providers: [EmailService, EmailTemplateService],
   exports: [EmailService, EmailTemplateService],
 })

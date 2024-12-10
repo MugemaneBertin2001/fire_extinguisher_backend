@@ -1,99 +1,53 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { MailerService } from '@nestjs-modules/mailer';
 import { EmailTemplateService } from './email-template.service';
+import { HttpService } from '@nestjs/axios';
 
 @Injectable()
 export class EmailService {
   private readonly logger = new Logger(EmailService.name, { timestamp: true });
 
   constructor(
-    private readonly mailerService: MailerService,
+    private readonly httpService: HttpService,
     private readonly emailTemplateService: EmailTemplateService,
   ) {}
 
-  async sendVerificationEmail(to: string, otp: string) {
+  private async sendEmail(to: string, subject: string, text: string): Promise<void> {
     try {
-      const htmlTemplate =
-        this.emailTemplateService.generateVerificationEmailTemplate(otp);
-
-      await this.mailerService.sendMail({
+      const response = await this.httpService.post(process.env.EMAIL_API_URL, {
         to,
-        subject: 'Verify Your Email - FireTrack360',
-        html: htmlTemplate,
-      });
+        subject,
+        text,
+      }).toPromise();
 
-      this.logger.log(`Verification email sent to ${to}`);
+      if (response.status === 200) {
+        this.logger.log(`Email sent to ${to} with subject "${subject}"`);
+      } else {
+        this.logger.error(`Failed to send email: ${response.statusText}`);
+        throw new Error(`Failed to send email: ${response.statusText}`);
+      }
     } catch (error) {
-      this.logger.error('Email sending failed:', error.stack);
-      throw new Error(`Failed to send verification email: ${error.message}`);
-    }
-  }
-  /**
-   * Send confirmation email after successful verification
-   * @param to Recipient's email address
-   * @param name User's name to personalize the email
-   */
-  async sendConfirmationEmail(to: string) {
-    try {
-      const htmlTemplate =
-        this.emailTemplateService.generateConfirmationEmailTemplate(to);
-
-      await this.mailerService.sendMail({
-        to,
-        subject: 'Email Successfully Verified - FireTrack360',
-        html: htmlTemplate,
-      });
-
-      this.logger.log(`Confirmation email sent to ${to}`);
-    } catch (error) {
-      this.logger.error('Email sending failed:', error.stack);
-      throw new Error(`Failed to send confirmation email: ${error.message}`);
+      this.logger.error('Error sending email:', error.stack || error.message);
+      throw new Error('Failed to send email.');
     }
   }
 
-  /**
-   * Sends a password reset email with an OTP to the specified email address.
-   *
-   * @param email - The recipient's email address.
-   * @param otp - The one-time password for resetting the user's password.
-   * @throws Error if the email sending fails.
-   */
+  async sendVerificationEmail(to: string, otp: string): Promise<void> {
+    const text = this.emailTemplateService.generateVerificationEmailTemplate(otp);
+    await this.sendEmail(to, 'Verify Your Email - FireTrack360', text);
+  }
+
+  async sendConfirmationEmail(to: string): Promise<void> {
+    const text = this.emailTemplateService.generateConfirmationEmailTemplate(to);
+    await this.sendEmail(to, 'Email Successfully Verified - FireTrack360', text);
+  }
+
   async sendForgetPasswordEmail(email: string, otp: string): Promise<void> {
-    try {
-      const htmlTemplate =
-        this.emailTemplateService.generateForgetPasswordTemplate(email, otp);
-      await this.mailerService.sendMail({
-        to: email,
-        subject: 'Password Reset Request',
-        html: htmlTemplate,
-      });
-    } catch (error) {
-      this.logger.error('Error sending email:', error.message);
-      throw new Error('Failed to send password reset email.');
-    }
+    const text = this.emailTemplateService.generateForgetPasswordTemplate(email, otp);
+    await this.sendEmail(email, 'Password Reset Request', text);
   }
-  /**
-   * Sends a password reset email with an OTP to the specified email address.
-   *
-   * @param email - The recipient's email address.
-   * @param otp - The one-time password for resetting the user's password.
-   * @throws Error if the email sending fails.
-   */
+
   async sendTwoFactorAuthEmail(email: string, otp: string): Promise<void> {
-    try {
-      const htmlTemplate =
-        this.emailTemplateService.generateTwoFactorAuthEmailTemplate(
-          email,
-          otp,
-        );
-      await this.mailerService.sendMail({
-        to: email,
-        subject: 'Password Reset Request',
-        html: htmlTemplate,
-      });
-    } catch (error) {
-      this.logger.error('Error sending email:', error.message);
-      throw new Error('Failed to send password reset email.');
-    }
+    const text = this.emailTemplateService.generateTwoFactorAuthEmailTemplate(email, otp);
+    await this.sendEmail(email, 'Two-Factor Authentication Code', text);
   }
 }
