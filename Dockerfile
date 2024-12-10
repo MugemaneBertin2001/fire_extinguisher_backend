@@ -2,7 +2,7 @@ FROM node:21-alpine AS build
 
 RUN corepack enable && corepack prepare pnpm@latest --activate
 
-WORKDIR /usr/src/build_fire_extinguisher_bn
+WORKDIR /usr/src/app
 
 COPY package*.json ./
 COPY pnpm-lock.yaml ./
@@ -14,22 +14,21 @@ COPY . .
 
 RUN pnpm run build 
 
-FROM node:21-alpine as development
+FROM node:21-alpine AS production
 
 RUN corepack enable && corepack prepare pnpm@latest --activate
 
-WORKDIR /usr/src/dev_fire_extinguisher_bn
+WORKDIR /usr/src/app
 
-COPY package*.json ./
-COPY pnpm-lock.yaml ./
-COPY tsconfig*.json ./
+# Only copy production-necessary files
+COPY --from=build /usr/src/app/dist ./dist
+COPY --from=build /usr/src/app/package*.json ./
+COPY --from=build /usr/src/app/pnpm-lock.yaml ./
 
-RUN pnpm install
-
-COPY . .
+# Install only production dependencies
+RUN pnpm install 
 
 EXPOSE 3000
 
-CMD ["sh", "-c", "pnpm run build && if [ \"$NODE_ENV\" = \"prod\" ]; then pnpm run start:prod; else pnpm run start:dev; fi"]
-
-
+# Simplified CMD for production
+CMD ["pnpm", "run", "start:prod"]

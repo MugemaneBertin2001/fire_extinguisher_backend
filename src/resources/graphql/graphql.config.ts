@@ -4,8 +4,8 @@ export const graphqlConfig: ApolloDriverConfig = {
   driver: ApolloDriver,
   autoSchemaFile: true,
   sortSchema: false,
-  debug: process.env.NODE_ENV !== 'prod',
-  playground: process.env.NODE_ENV !== 'prod',
+  debug: process.env.NODE_ENV === 'development',
+  playground: process.env.NODE_ENV === 'development',
   introspection: true,
   subscriptions: {
     'graphql-ws': true,

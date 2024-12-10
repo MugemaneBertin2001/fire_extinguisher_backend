@@ -17,6 +17,7 @@ import { HealthModule } from './health/health.module';
     GqlModule,
     ConfigModule.forRoot(),
     EmailModule,
+    ConfigModule,
   ],
   controllers: [AppController],
   providers: [AppService, AppResolver],
