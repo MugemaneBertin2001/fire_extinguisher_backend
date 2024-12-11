@@ -11,4 +11,8 @@ export const graphqlConfig: ApolloDriverConfig = {
     'graphql-ws': true,
     'subscriptions-transport-ws': true,
   },
+  context: ({ req }) => ({
+    req,
+    timeout: 60000, // Increased timeout to 1 minute
+  }),
 };
