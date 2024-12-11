@@ -1,6 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { EmailTemplateService } from './email-template.service';
 import { HttpService } from '@nestjs/axios';
+import { firstValueFrom } from 'rxjs';
 
 @Injectable()
 export class EmailService {
@@ -11,43 +12,48 @@ export class EmailService {
     private readonly emailTemplateService: EmailTemplateService,
   ) {}
 
-  private async sendEmail(to: string, subject: string, text: string): Promise<void> {
-    try {
-      const response = await this.httpService.post(process.env.EMAIL_API_URL, {
+  private sendEmail(to: string, subject: string, text: string): void {
+    firstValueFrom(
+      this.httpService.post(process.env.EMAIL_API_URL, {
         to,
         subject,
         text,
-      }).toPromise();
-
-      if (response.status === 200) {
-        this.logger.log(`Email sent to ${to} with subject "${subject}"`);
-      } else {
-        this.logger.error(`Failed to send email: ${response.statusText}`);
-        throw new Error(`Failed to send email: ${response.statusText}`);
-      }
-    } catch (error) {
-      this.logger.error('Error sending email:', error.stack || error.message);
-      throw new Error('Failed to send email.');
-    }
+      })
+    )
+      .then(response => {
+        if (response.status === 200) {
+          this.logger.log(`Email sent successfully to ${to} with subject "${subject}"`);
+        } else {
+          this.logger.warn(
+            `Non-200 status code when sending email to ${to}: ${response.status} ${response.statusText}`
+          );
+        }
+      })
+      .catch(error => {
+        this.logger.error(
+          `Failed to send email to ${to}: ${error.message}`,
+          error.stack
+        );
+      });
   }
 
-  async sendVerificationEmail(to: string, otp: string): Promise<void> {
+  sendVerificationEmail(to: string, otp: string): void {
     const text = this.emailTemplateService.generateVerificationEmailTemplate(otp);
-    await this.sendEmail(to, 'Verify Your Email - FireTrack360', text);
+    this.sendEmail(to, 'Verify Your Email - FireTrack360', text);
   }
 
-  async sendConfirmationEmail(to: string): Promise<void> {
+  sendConfirmationEmail(to: string): void {
     const text = this.emailTemplateService.generateConfirmationEmailTemplate(to);
-    await this.sendEmail(to, 'Email Successfully Verified - FireTrack360', text);
+    this.sendEmail(to, 'Email Successfully Verified - FireTrack360', text);
   }
 
-  async sendForgetPasswordEmail(email: string, otp: string): Promise<void> {
+  sendForgetPasswordEmail(email: string, otp: string): void {
     const text = this.emailTemplateService.generateForgetPasswordTemplate(email, otp);
-    await this.sendEmail(email, 'Password Reset Request', text);
+    this.sendEmail(email, 'Password Reset Request', text);
   }
 
-  async sendTwoFactorAuthEmail(email: string, otp: string): Promise<void> {
+  sendTwoFactorAuthEmail(email: string, otp: string): void {
     const text = this.emailTemplateService.generateTwoFactorAuthEmailTemplate(email, otp);
-    await this.sendEmail(email, 'Two-Factor Authentication Code', text);
+    this.sendEmail(email, 'Two-Factor Authentication Code', text);
   }
 }

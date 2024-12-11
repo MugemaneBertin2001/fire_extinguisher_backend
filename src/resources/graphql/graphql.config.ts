@@ -13,6 +13,6 @@ export const graphqlConfig: ApolloDriverConfig = {
   },
   context: ({ req }) => ({
     req,
-    timeout: 60000, // Increased timeout to 1 minute
+    timeout: 60000, 
   }),
 };
