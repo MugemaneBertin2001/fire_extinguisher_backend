@@ -276,6 +276,40 @@ export class UserService {
   }
 
   /**
+   * Resend verification OTP
+   */
+  async resendVerificationOtp(email: string): Promise<Response> {
+    const user = await this.findUserByEmail(email);
+
+    try {
+      if (user.verified) {
+        throw new BadRequestException('User is already verified.');
+      }
+
+      // Generate new OTP and verification token
+      const newVerificationToken = this.generateVerificationToken(email, user.role);
+      await this.userRepository.updateUser(user.id, { verificationToken: newVerificationToken });
+
+      // Send new OTP email
+      await this.emailService.sendVerificationEmail(
+        email,
+        this.authJwtService.validateToken(newVerificationToken).otp,
+      );
+
+      return {
+        message: 'Verification OTP resent successfully.',
+        status: HttpStatus.OK,
+      };
+    } catch (error) {
+      return this.handleError(
+        'Failed to resend verification OTP',
+        error,
+        'An error occurred while processing the resend verification OTP request',
+      );
+    }
+  }
+
+  /**
    * Initiate password reset
    */
   async forgetPassword(email: string): Promise<Response> {
