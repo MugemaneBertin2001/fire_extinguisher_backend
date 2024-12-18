@@ -73,4 +73,11 @@ export class UserResolver {
   ): Promise<Response> {
     return await this.userService.replaceForgotPassword(newPasswordInput);
   }
+
+  @Mutation(() => Response)
+  async resendVerificationOtp(
+    @Args('email') email: string,
+  ): Promise<Response> {
+    return this.userService.resendVerificationOtp(email);
+  }
 }
