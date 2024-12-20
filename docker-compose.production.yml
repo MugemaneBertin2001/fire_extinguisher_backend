@@ -1,6 +1,6 @@
 services:
   backend:
-    image: mugemanebertin/fire-extinguisher-backend:latest
+    image: mugemanebertin/firetrack360-backend:latest
     container_name: fire_extinguisher_backend
     env_file:
       - env.production
