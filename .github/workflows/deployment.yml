@@ -1,4 +1,5 @@
 name: Deploy FireTrack360 to DigitalOcean
+
 on:
   push:
     branches: ['main']
@@ -6,16 +7,6 @@ on:
 jobs:
   build-and-deploy:
     runs-on: ubuntu-latest
-    env:
-      MYSQL_ROOT_PASSWORD: Mine!123
-      MYSQL_DATABASE: fireTrack360_db
-      MYSQL_USER: firetrack
-      MYSQL_PASSWORD: Mine!123
-      DB_HOST: mysql
-      DB_PORT: 3306
-      DB_USERNAME: firetrack
-      DB_PASSWORD: Mine!123
-      DB_NAME: fireTrack360_db
 
     steps:
       - uses: actions/checkout@v3
@@ -29,7 +20,7 @@ jobs:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
-      - name: Build and push
+      - name: Build and push Docker image
         uses: docker/build-push-action@v4
         with:
           context: .
@@ -38,7 +29,7 @@ jobs:
           cache-from: type=local,src=/tmp/.buildx-cache
           cache-to: type=local,dest=/tmp/.buildx-cache-new
 
-      - name: Create env file
+      - name: Create environment file on server
         uses: appleboy/ssh-action@master
         with:
           host: ${{ secrets.DO_HOST }}
@@ -46,25 +37,25 @@ jobs:
           key: ${{ secrets.DO_SSH_PRIVATE_KEY }}
           script: |
             mkdir -p /root/firetrack360
-            cat > /root/firetrack360/env.production << 'EOL'
-            MYSQL_ROOT_PASSWORD=Mine!123
-            MYSQL_DATABASE=fireTrack360_db
-            MYSQL_USER=firetrack
-            MYSQL_PASSWORD=Mine!123
-            DB_HOST=mysql
-            DB_PORT=3306
-            DB_USERNAME=firetrack
-            DB_PASSWORD=Mine!123
-            DB_NAME=fireTrack360_db
-            NODE_ENV=production
-            SALT_ROUNDS=19
-            EMAIL_API_URL=http://167.99.222.32:8080/api/mail/send
-            JWT_SECRET=prod_Y29nUnlOYnNNbG43QzM0Y0FqM1FPX9VXw44uQfYhT8S95jXkks7tZFEYpXlHVc2KQK8NdYXiZDLzP4pR2xFQ==
-            JWT_EXPIRES_IN=24h
-            DOCKERHUB_USERNAME=bertinm2001
+            cat > /root/firetrack360/env.production << "EOL"
+            MYSQL_ROOT_PASSWORD=${{ secrets.MYSQL_ROOT_PASSWORD }}
+            MYSQL_DATABASE=${{ secrets.MYSQL_DATABASE }}
+            MYSQL_USER=${{ secrets.MYSQL_USER }}
+            MYSQL_PASSWORD=${{ secrets.MYSQL_PASSWORD }}
+            DB_HOST=${{ secrets.DB_HOST }}  
+            DB_PORT=${{ secrets.DB_PORT }}
+            DB_USERNAME=${{ secrets.DB_USERNAME }}
+            DB_PASSWORD=${{ secrets.DB_PASSWORD }}
+            DB_NAME=${{ secrets.DB_NAME }}
+            NODE_ENV=${{ secrets.NODE_ENV }}
+            SALT_ROUNDS=${{ secrets.SALT_ROUNDS }}
+            EMAIL_API_URL=${{ secrets.EMAIL_API_URL }}
+            JWT_SECRET=${{ secrets.JWT_SECRET }}
+            JWT_EXPIRES_IN=${{ secrets.JWT_EXPIRES_IN }}
+            DOCKERHUB_USERNAME=${{ secrets.DOCKERHUB_USERNAME }}
             EOL
 
-      - name: Copy Docker Compose file
+      - name: Copy Docker Compose file to server
         uses: appleboy/scp-action@master
         with:
           host: ${{ secrets.DO_HOST }}
@@ -73,7 +64,7 @@ jobs:
           source: 'docker-compose.yml'
           target: '/root/firetrack360'
 
-      - name: Deploy to DigitalOcean
+      - name: Deploy FireTrack360 on DigitalOcean
         uses: appleboy/ssh-action@master
         with:
           host: ${{ secrets.DO_HOST }}
@@ -84,13 +75,28 @@ jobs:
             cp env.production .env
             docker compose pull
             docker compose down
-            docker compose up -d
+            docker compose up -d --parallel
 
-            # Wait for services to be healthy
             echo "Waiting for services to be healthy..."
-            sleep 30
+            
+            timeout=60
+            while [[ $timeout -gt 0 ]]; do
+              health_status=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:3000/health || echo "000") 
+              if [[ $health_status == "200" ]]; then
+                echo "Services are healthy"
+                break
+              fi
+              sleep 5
+              timeout=$((timeout - 5))
+            done
+          
+            if [[ $timeout -le 0 ]]; then
+              echo "Timed out waiting for services to be healthy"
+              docker compose logs
+              exit 1
+            fi
 
-      - name: Verify Deployment
+      - name: Verify deployment
         uses: appleboy/ssh-action@master
         with:
           host: ${{ secrets.DO_HOST }}
@@ -99,20 +105,27 @@ jobs:
           script: |
             cd /root/firetrack360
 
-            # Check backend container
-            BACKEND_STATUS=$(docker compose ps backend --format json | grep -o '"State":"[^"]*"' | cut -d'"' -f4)
-            if [ "$BACKEND_STATUS" != "running" ]; then
-              echo "Backend container is not running"
-              docker compose logs backend
-              exit 1
-            fi
-
-            # Health check
-            HEALTH_CHECK=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:3000/health || echo "000")
-            if [ "$HEALTH_CHECK" != "200" ]; then
-              echo "Health check failed. HTTP status: $HEALTH_CHECK"
-              docker compose logs
-              exit 1
-            fi
+            # Check each service's health individually
+            services=(backend database)  # add more if needed
+            for service in "${services[@]}"; do
+              health_check=$(docker compose exec -T $service /bin/bash -c "curl -s -o /dev/null -w \"%{http_code}\" http://localhost:3000/health || echo \"000\"")
+              if [[ $health_check != "200" ]]; then
+                echo "$service health check failed with status $health_check"
+                docker compose logs $service
+                exit 1
+              fi
+            done
 
             echo "Deployment successful!"
+
+      - name: Notify on success
+        if: success()
+        run: |
+          # Add your notification logic here (e.g., post to Slack, send email)
+          echo "Deployment succeeded!"
+
+      - name: Notify on failure
+        if: failure()
+        run: |  
+          # Add your notification logic here
+          echo "Deployment failed!"
