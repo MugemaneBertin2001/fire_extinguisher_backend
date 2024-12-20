@@ -119,10 +119,8 @@ export class UserService {
         verificationToken,
       });
 
-      await this.emailService.sendVerificationEmail(
-        email,
-        this.authJwtService.validateToken(verificationToken).otp,
-      );
+      // Send verification email in the background
+      this.sendVerificationEmail(email, verificationToken);
 
       return {
         message:
@@ -136,8 +134,11 @@ export class UserService {
         'Failed to send OTP email',
       );
     }
-  }
-
+}
+private async sendVerificationEmail(email: string, verificationToken: string): Promise<void> {
+  const otp = this.authJwtService.validateToken(verificationToken).otp;
+  await this.emailService.sendVerificationEmail(email, otp);
+}
   /**
    * Verify user account
    */
