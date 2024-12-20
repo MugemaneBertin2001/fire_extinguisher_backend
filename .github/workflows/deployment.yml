@@ -14,21 +14,24 @@ jobs:
     timeout-minutes: 30
 
     steps:
-      - uses: actions/checkout@v3
+      - name: Checkout code
+        uses: actions/checkout@v3
         with:
           fetch-depth: 0
 
-      - uses: docker/setup-buildx-action@v2
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v2
         with:
           version: latest
 
-      - uses: docker/login-action@v2
+      - name: Login to Docker Hub
+        uses: docker/login-action@v2
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
-          registry: https://index.docker.io/v1/
 
-      - uses: docker/build-push-action@v4
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v4
         with:
           context: .
           push: true
@@ -41,11 +44,13 @@ jobs:
             NODE_ENV=production
           platforms: linux/amd64
 
-      - run: |
+      - name: Move cache
+        run: |
           rm -rf /tmp/.buildx-cache
           mv /tmp/.buildx-cache-new /tmp/.buildx-cache
 
-      - uses: appleboy/ssh-action@master
+      - name: Create environment file
+        uses: appleboy/ssh-action@master
         with:
           host: ${{ secrets.DO_HOST }}
           username: ${{ secrets.DO_USER }}
@@ -71,7 +76,8 @@ jobs:
             EOL
             chmod 600 /root/firetrack360/.env
 
-      - uses: appleboy/scp-action@master
+      - name: Copy Docker Compose file
+        uses: appleboy/scp-action@master
         with:
           host: ${{ secrets.DO_HOST }}
           username: ${{ secrets.DO_USER }}
@@ -80,26 +86,33 @@ jobs:
           target: '/root/firetrack360'
           strip_components: 0
 
-      - uses: appleboy/ssh-action@master
+      - name: Deploy to DigitalOcean
+        uses: appleboy/ssh-action@master
         with:
           host: ${{ secrets.DO_HOST }}
           username: ${{ secrets.DO_USER }}
           key: ${{ secrets.DO_SSH_PRIVATE_KEY }}
           script: |
             cd /root/firetrack360
-            doctl auth init -t ${{ secrets.DO_SSH_PRIVATE_KEY }}
-            
+            doctl auth init -t ${{ secrets.DO_API_TOKEN }}
+            if ! command -v docker compose &> /dev/null; then
+              sudo apt-get update
+              sudo apt-get install -y docker-compose-plugin
+            fi
             echo "${{ secrets.DOCKERHUB_TOKEN }}" | docker login -u "${{ secrets.DOCKERHUB_USERNAME }}" --password-stdin
-            
-            docker stop fire_extinguisher_backend || true
-            docker rm fire_extinguisher_backend || true
-            # Remove only the backend image
-            docker rmi ${{ secrets.DOCKERHUB_USERNAME }}/firetrack360-backend:latest || true
-            
-            # Pull and start the services defined in docker-compose.production.yml
-            docker-compose -f docker-compose.production.yml pull
-            docker-compose -f docker-compose.production.yml up -d
-      - uses: appleboy/ssh-action@master
+            CURRENT_CONTAINERS=$(docker compose -f docker-compose.production.yml ps -q)
+            if [ ! -z "$CURRENT_CONTAINERS" ]; then
+              docker compose -f docker-compose.production.yml stop
+              docker compose -f docker-compose.production.yml rm -f
+            fi
+            if docker images | grep -q "${DOCKERHUB_USERNAME}/firetrack360-backend"; then
+              docker rmi ${DOCKERHUB_USERNAME}/firetrack360-backend:latest
+            fi
+            docker compose -f docker-compose.production.yml pull
+            docker compose -f docker-compose.production.yml up -d
+
+      - name: Verify deployment
+        uses: appleboy/ssh-action@master
         with:
           host: ${{ secrets.DO_HOST }}
           username: ${{ secrets.DO_USER }}
@@ -109,11 +122,9 @@ jobs:
             set -a
             source .env
             set +a
-            
             max_retries=10
             retry_count=0
             wait_time=15
-            
             while [ $retry_count -lt $max_retries ]; do
               health_status=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:3000/health || echo "000")
               if [ "$health_status" = "200" ]; then
@@ -122,12 +133,10 @@ jobs:
               sleep $wait_time
               retry_count=$((retry_count + 1))
             done
-            
             if [ $retry_count -eq $max_retries ]; then
               docker compose -f docker-compose.production.yml logs
               exit 1
             fi
-            
             retry_count=0
             while [ $retry_count -lt $max_retries ]; do
               if docker compose -f docker-compose.production.yml exec -T mysql mysqladmin ping -h localhost -u"$MYSQL_USER" -p"$MYSQL_PASSWORD" --silent; then
@@ -136,19 +145,21 @@ jobs:
               sleep $wait_time
               retry_count=$((retry_count + 1))
             done
-            
             if [ $retry_count -eq $max_retries ]; then
               docker compose -f docker-compose.production.yml logs
               exit 1
             fi
 
-      - if: success()
+      - name: Notify success
+        if: success()
         run: echo "Deployment succeeded!"
 
-      - if: failure()
+      - name: Notify failure
+        if: failure()
         run: echo "Deployment failed!"
 
-      - if: always()
+      - name: Cleanup
+        if: always()
         uses: appleboy/ssh-action@master
         with:
           host: ${{ secrets.DO_HOST }}
