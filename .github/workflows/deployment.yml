@@ -75,6 +75,9 @@ jobs:
 
             # Login to Docker Hub on the server
             echo "${{ secrets.DOCKERHUB_TOKEN }}" | docker login -u "${{ secrets.DOCKERHUB_USERNAME }}" --password-stdin
+            # stop existing containers
+            docker stop fire_extinguisher_backend
+            docker stop fire_extinguisher_mysql
 
             # Pull the latest images
             docker compose pull
@@ -138,8 +141,8 @@ jobs:
           # Add your notification logic here (e.g., post to Slack, send email)
           echo "Deployment succeeded!"
 
-      - name: Notify on failure 
+      - name: Notify on failure
         if: failure()
-        run: |  
+        run: |
           # Add your notification logic here
           echo "Deployment failed!"
