@@ -28,60 +28,58 @@ jobs:
           cache-from: type=local,src=/tmp/.buildx-cache
           cache-to: type=local,dest=/tmp/.buildx-cache-new
 
+      - name: Copy deployment files
+        uses: appleboy/scp-action@master
+        with:
+          host: ${{ secrets.DO_HOST }}
+          username: ${{ secrets.DO_USER }}
+          key: ${{ secrets.DO_SSH_PRIVATE_KEY }}
+          source: "docker-compose.yml,env.production"
+          target: "/root/firetrack360"
+
       - name: Deploy to DigitalOcean
-        env:
-          MYSQL_ROOT_PASSWORD: ${{ secrets.MYSQL_ROOT_PASSWORD }}
-          MYSQL_DATABASE: ${{ secrets.MYSQL_DATABASE }}
-          DB_HOST: ${{ secrets.DB_HOST }}
-          DB_PORT: ${{ secrets.DB_PORT }}
-          DB_USERNAME: ${{ secrets.DB_USERNAME }}
-          DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
-          DB_NAME: ${{secrets.DB_NAME}}
-          NODE_ENV: ${{ secrets.NODE_ENV }}
-          SMTP_HOST: ${{ secrets.SMTP_HOST }}
-          SMTP_PORT: ${{ secrets.SMTP_PORT }}
-          SMTP_USER: ${{ secrets.SMTP_USER }}
-          SMTP_PASS: ${{ secrets.SMTP_PASS }}
-          JWT_SECRET: ${{ secrets.JWT_SECRET }}
-          JWT_EXPIRES_IN: ${{ secrets.JWT_EXPIRES_IN }}
         uses: appleboy/ssh-action@master
         with:
           host: ${{ secrets.DO_HOST }}
           username: ${{ secrets.DO_USER }}
           key: ${{ secrets.DO_SSH_PRIVATE_KEY }}
           script: |
-            # Pull and run the Docker container
-            docker pull ${{ secrets.DOCKERHUB_USERNAME }}/firetrack360-backend:latest
-            docker stop firetrack360-backend || true
-            docker rm firetrack360-backend || true
-            docker run -d \
-              --name firetrack360-backend \
-              -p 3000:3000 \
-              ${{ secrets.DOCKERHUB_USERNAME }}/firetrack360-backend:latest
+            cd /root/firetrack360
+            
+            # Copy env.production to .env
+            cp env.production .env
+            
+            # Pull latest images and restart containers
+            docker compose pull
+            docker compose down
+            docker compose up -d
 
-      - name: Verify Container Deployment
+            # Wait for services to be healthy
+            echo "Waiting for services to be healthy..."
+            sleep 30
+
+      - name: Verify Deployment
         uses: appleboy/ssh-action@master
         with:
           host: ${{ secrets.DO_HOST }}
           username: ${{ secrets.DO_USER }}
           key: ${{ secrets.DO_SSH_PRIVATE_KEY }}
           script: |
-            # Wait for container to start
-            sleep 20
-
-            # Check container status
-            CONTAINER_STATUS=$(docker inspect -f '{{.State.Status}}' firetrack360-backend)
-            if [ "$CONTAINER_STATUS" != "running" ]; then
-              echo "Container is not running"
-              docker logs firetrack360-backend
+            cd /root/firetrack360
+            
+            # Check containers status
+            BACKEND_STATUS=$(docker compose ps backend --format json | grep -o '"State":"[^"]*"' | cut -d'"' -f4)
+            if [ "$BACKEND_STATUS" != "running" ]; then
+              echo "Backend container is not running"
+              docker compose logs backend
               exit 1
             fi
 
-            # Perform health check
+            # Health check
             HEALTH_CHECK=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:3000/health || echo "000")
             if [ "$HEALTH_CHECK" != "200" ]; then
               echo "Health check failed. HTTP status: $HEALTH_CHECK"
-              docker logs firetrack360-backend
+              docker compose logs
               exit 1
             fi
 
