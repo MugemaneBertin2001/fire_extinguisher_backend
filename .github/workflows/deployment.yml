@@ -72,8 +72,14 @@ jobs:
           key: ${{ secrets.DO_SSH_PRIVATE_KEY }}
           script: |
             cd /root/firetrack360
-            cp env.production .env
+
+            # Login to Docker Hub on the server
+            echo "${{ secrets.DOCKERHUB_TOKEN }}" | docker login -u "${{ secrets.DOCKERHUB_USERNAME }}" --password-stdin
+
+            # Pull the latest images
             docker compose pull
+
+            # Deploy the services
             docker compose down
             docker compose -f docker-compose.production.yml up -d
 
