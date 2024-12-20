@@ -111,16 +111,24 @@ jobs:
           script: |
             cd /root/firetrack360
 
-            # Check each service's health individually
-            services=(backend database)  # add more if needed
-            for service in "${services[@]}"; do
-              health_check=$(docker compose exec -T $service /bin/bash -c "curl -s -o /dev/null -w \"%{http_code}\" http://localhost:3000/health || echo \"000\"")
-              if [[ $health_check != "200" ]]; then
-                echo "$service health check failed with status $health_check"
-                docker compose logs $service
-                exit 1
-              fi
-            done
+            # Wait for services to start
+            sleep 30
+
+            # Check backend health
+            backend_health_check=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:3000/health)
+            if [[ $backend_health_check != "200" ]]; then
+              echo "Backend health check failed with status $backend_health_check"
+              docker compose logs backend
+              exit 1
+            fi
+
+            # Check database health
+            database_health_check=$(docker compose exec -T mysql mysqladmin ping --silent)
+            if [[ $? != 0 ]]; then
+              echo "Database health check failed"
+              docker compose logs mysql
+              exit 1
+            fi
 
             echo "Deployment successful!"
 
@@ -130,8 +138,8 @@ jobs:
           # Add your notification logic here (e.g., post to Slack, send email)
           echo "Deployment succeeded!"
 
-      - name: Notify on failure
+      - name: Notify on failure 
         if: failure()
-        run: |
+        run: |  
           # Add your notification logic here
           echo "Deployment failed!"
