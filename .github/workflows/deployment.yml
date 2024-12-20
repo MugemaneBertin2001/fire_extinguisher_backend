@@ -6,6 +6,16 @@ on:
 jobs:
   build-and-deploy:
     runs-on: ubuntu-latest
+    env:
+      MYSQL_ROOT_PASSWORD: Mine!123
+      MYSQL_DATABASE: fireTrack360_db
+      MYSQL_USER: firetrack
+      MYSQL_PASSWORD: Mine!123
+      DB_HOST: mysql
+      DB_PORT: 3306
+      DB_USERNAME: firetrack
+      DB_PASSWORD: Mine!123
+      DB_NAME: fireTrack360_db
 
     steps:
       - uses: actions/checkout@v3
@@ -28,14 +38,40 @@ jobs:
           cache-from: type=local,src=/tmp/.buildx-cache
           cache-to: type=local,dest=/tmp/.buildx-cache-new
 
-      - name: Copy deployment files
+      - name: Create env file
+        uses: appleboy/ssh-action@master
+        with:
+          host: ${{ secrets.DO_HOST }}
+          username: ${{ secrets.DO_USER }}
+          key: ${{ secrets.DO_SSH_PRIVATE_KEY }}
+          script: |
+            mkdir -p /root/firetrack360
+            cat > /root/firetrack360/env.production << 'EOL'
+            MYSQL_ROOT_PASSWORD=Mine!123
+            MYSQL_DATABASE=fireTrack360_db
+            MYSQL_USER=firetrack
+            MYSQL_PASSWORD=Mine!123
+            DB_HOST=mysql
+            DB_PORT=3306
+            DB_USERNAME=firetrack
+            DB_PASSWORD=Mine!123
+            DB_NAME=fireTrack360_db
+            NODE_ENV=production
+            SALT_ROUNDS=19
+            EMAIL_API_URL=http://167.99.222.32:8080/api/mail/send
+            JWT_SECRET=prod_Y29nUnlOYnNNbG43QzM0Y0FqM1FPX9VXw44uQfYhT8S95jXkks7tZFEYpXlHVc2KQK8NdYXiZDLzP4pR2xFQ==
+            JWT_EXPIRES_IN=24h
+            DOCKERHUB_USERNAME=bertinm2001
+            EOL
+
+      - name: Copy Docker Compose file
         uses: appleboy/scp-action@master
         with:
           host: ${{ secrets.DO_HOST }}
           username: ${{ secrets.DO_USER }}
           key: ${{ secrets.DO_SSH_PRIVATE_KEY }}
-          source: "docker-compose.yml,env.production"
-          target: "/root/firetrack360"
+          source: 'docker-compose.yml'
+          target: '/root/firetrack360'
 
       - name: Deploy to DigitalOcean
         uses: appleboy/ssh-action@master
@@ -45,11 +81,7 @@ jobs:
           key: ${{ secrets.DO_SSH_PRIVATE_KEY }}
           script: |
             cd /root/firetrack360
-            
-            # Copy env.production to .env
             cp env.production .env
-            
-            # Pull latest images and restart containers
             docker compose pull
             docker compose down
             docker compose up -d
@@ -66,8 +98,8 @@ jobs:
           key: ${{ secrets.DO_SSH_PRIVATE_KEY }}
           script: |
             cd /root/firetrack360
-            
-            # Check containers status
+
+            # Check backend container
             BACKEND_STATUS=$(docker compose ps backend --format json | grep -o '"State":"[^"]*"' | cut -d'"' -f4)
             if [ "$BACKEND_STATUS" != "running" ]; then
               echo "Backend container is not running"
