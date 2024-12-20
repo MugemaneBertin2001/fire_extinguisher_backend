@@ -93,10 +93,8 @@ export class UserService {
   async create(createUserInput: RegistrationFields): Promise<Response> {
     const { email, phone, password, confirmPassword } = createUserInput;
 
-    // Validate passwords
     this.validatePasswordConfirmation(password, confirmPassword);
 
-    // Check for existing user
     const existingUser =
       (await this.userRepository.findByIdentifier(email)) ||
       (await this.userRepository.findByIdentifier(phone));
@@ -118,8 +116,6 @@ export class UserService {
         role,
         verificationToken,
       });
-
-      // Send verification email in the background
       this.sendVerificationEmail(email, verificationToken);
 
       return {
@@ -190,7 +186,6 @@ private async sendVerificationEmail(email: string, verificationToken: string): P
     const user = await this.findUserByEmail(email);
 
     try {
-      // Validate password
       const isPasswordValid = await this.hashingService.comparePassword(
         password,
         user.password,

@@ -94,7 +94,7 @@ jobs:
           key: ${{ secrets.DO_SSH_PRIVATE_KEY }}
           script: |
             cd /root/firetrack360
-            doctl auth init -t ${{ secrets.DO_API_TOKEN }}
+            doctl auth init -t ${{ secrets.DO_SSH_PRIVATE_KEY}}
             if ! command -v docker compose &> /dev/null; then
               sudo apt-get update
               sudo apt-get install -y docker-compose-plugin
