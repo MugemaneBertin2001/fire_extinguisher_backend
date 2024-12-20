@@ -90,13 +90,14 @@ jobs:
             
             echo "${{ secrets.DOCKERHUB_TOKEN }}" | docker login -u "${{ secrets.DOCKERHUB_USERNAME }}" --password-stdin
             
-            docker stop $(docker ps -a -q) || true
-            docker rm $(docker ps -a -q) || true
-            docker rmi $(docker images -q) || true
+            docker stop fire_extinguisher_backend || true
+            docker rm fire_extinguisher_backend || true
+            # Remove only the backend image
+            docker rmi ${{ secrets.DOCKERHUB_USERNAME }}/firetrack360-backend:latest || true
             
-            docker compose -f docker-compose.production.yml pull
-            docker compose -f docker-compose.production.yml up -d
-
+            # Pull and start the services defined in docker-compose.production.yml
+            docker-compose -f docker-compose.production.yml pull
+            docker-compose -f docker-compose.production.yml up -d
       - uses: appleboy/ssh-action@master
         with:
           host: ${{ secrets.DO_HOST }}
