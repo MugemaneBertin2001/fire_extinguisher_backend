@@ -20,7 +20,7 @@ import { TypeOrmModule } from '@nestjs/typeorm';
           username: configService.get('DB_USERNAME', 'root'),
           password: configService.get('DB_PASSWORD', 'password'),
           database: configService.get('DB_NAME', 'fire_extinguisher_db'),
-          synchronize: !isProd,
+          synchronize: true,
           logging: !isProd,
           entities: [__dirname + '/../**/*.entity{.ts,.js}'],
           extra: {

@@ -15,7 +15,7 @@ export const databaseProviders = [
         username: configService.get<string>('DB_USERNAME', 'root'),
         password: configService.get<string>('DB_PASSWORD', 'password'),
         database: configService.get<string>('DB_NAME', 'fire_extinguisher_db'),
-        synchronize: !isProd, 
+        synchronize: true, 
         logging: !isProd, 
         entities: [__dirname + '/../**/*.entity{.ts,.js}'],
         extra: {
