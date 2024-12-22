@@ -24,7 +24,7 @@ export class EmailService {
   constructor(
     private readonly httpService: HttpService,
     private readonly emailTemplateService: EmailTemplateService,
-    @InjectQueue('email') private readonly emailQueue: Queue,
+    @InjectQueue('USER_EMAILS_QUEUE') private readonly emailQueue: Queue,
   ) {
     this.setupQueueProcessors();
   }

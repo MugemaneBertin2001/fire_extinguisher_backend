@@ -38,7 +38,7 @@ export class UserService {
     private readonly authJwtService: AuthJwtService,
     private readonly loggerService: Logger,
     @Inject(CACHE_MANAGER) private readonly cacheManager: Cache,
-    @Inject('USER_QUEUE') private readonly userQueue: Queue,
+    @Inject('USER_EMAILS_QUEUE') private readonly userQueue: Queue,
   ) {}
 
   /**
