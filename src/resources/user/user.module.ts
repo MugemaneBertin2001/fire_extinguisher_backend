@@ -23,7 +23,7 @@ import { Queue } from 'bull';
     EmailModule,
     JwtModule,
     BullModule.registerQueue({
-      name: 'USER_QUEUE',
+      name: 'USER_EMAILS_QUEUE',
     }),
     CacheModule.registerAsync<RedisClientOptions>({
       useFactory: () => ({
@@ -54,7 +54,7 @@ import { Queue } from 'bull';
     {
       provide: 'USER_QUEUE',
       useFactory: (queue: Queue) => queue,
-      inject: ['BullQueue_USER_QUEUE'],
+      inject: ['BullQueue_USER_EMAILS_QUEUE'],
     },
   ],
   exports: [UserService, HashingService, UserRepository, AuthJwtService],

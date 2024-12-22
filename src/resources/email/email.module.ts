@@ -23,7 +23,7 @@ import { ConfigService } from '@nestjs/config';
       inject: [ConfigService],
     }),
     BullModule.registerQueue({
-      name: 'email',
+      name: 'USER_EMAILS_QUEUE',
       defaultJobOptions: {
         attempts: 3,
         backoff: {
