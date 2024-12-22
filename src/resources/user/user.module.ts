@@ -26,6 +26,7 @@ import redisStore  from 'cache-manager-redis-store';
         socket: {
           host: process.env.REDIS_HOST || 'localhost',
           port: parseInt(process.env.REDIS_PORT || '6379'),
+          password: process.env.REDIS_PASSWORD || 'Pwd4329uskbfsbjsvbdv',
         },
         ttl: parseInt(process.env.REDIS_TTL || '3600'),
       }),

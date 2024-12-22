@@ -73,6 +73,12 @@ jobs:
             JWT_SECRET=${{ secrets.JWT_SECRET }}
             JWT_EXPIRES_IN=${{ secrets.JWT_EXPIRES_IN }}
             DOCKERHUB_USERNAME=${{ secrets.DOCKERHUB_USERNAME }}
+            REDIS_HOST=${{ secrets.REDIS_HOST }}
+            REDIS_PORT=${{ secrets.REDIS_PORT }}
+            REDIS_PASSWORD=${{ secrets.REDIS_PASSWORD }}
+            REDIS_TTL=${{ secrets.REDIS_TTL }}
+            THROTTLE_TTL=${{ secrets.THROTTLE_TTL }}
+            THROTTLE_LIMIT=${{ secrets.THROTTLE_LIMIT }}
             EOL
             chmod 600 /root/firetrack360/.env
 
