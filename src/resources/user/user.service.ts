@@ -7,9 +7,13 @@ import {
   UnauthorizedException,
   BadRequestException,
   InternalServerErrorException,
+  Inject,
 } from '@nestjs/common';
-
+import { CACHE_MANAGER } from '@nestjs/cache-manager';
+import { Cache } from 'cache-manager';
+import { Queue } from 'bull';
 import * as crypto from 'crypto';
+import { memoize } from 'lodash';
 
 import { HashingService } from './hashing.service';
 import { UserRepository } from './user.repository';
@@ -24,34 +28,43 @@ import { User, UserRole } from './entities/user.entity';
 
 @Injectable()
 export class UserService {
+  private readonly USER_CACHE_PREFIX = 'user:';
+  private readonly USER_CACHE_TTL = 3600; 
+
   constructor(
     private readonly userRepository: UserRepository,
     private readonly hashingService: HashingService,
     private readonly emailService: EmailService,
     private readonly authJwtService: AuthJwtService,
     private readonly loggerService: Logger,
+    @Inject(CACHE_MANAGER) private readonly cacheManager: Cache,
+    @Inject('USER_QUEUE') private readonly userQueue: Queue,
   ) {}
 
   /**
    * Generate a verification token with OTP
-   * @param email User's email
-   * @param role User's role
-   * @returns Verification token
+   * Memoized to prevent multiple generations in the same request
+   */
+  private readonly memoizedTokenGenerator = memoize(
+    (email: string, role?: UserRole): string => {
+      const otp = crypto.randomInt(100000, 999999).toString();
+      return this.authJwtService.generateToken(
+        { email, otp, ...(role && { role }) },
+        process.env.JWT_EXPIRES_IN,
+      );
+    },
+    (email: string, role?: UserRole) => `${email}:${role}`
+  );
+
+  /**
+   * Generate a verification token with OTP
    */
   private generateVerificationToken(email: string, role?: UserRole): string {
-    const otp = crypto.randomInt(100000, 999999).toString();
-    return this.authJwtService.generateToken(
-      { email, otp, ...(role && { role }) },
-      process.env.JWT_EXPIRES_IN,
-    );
+    return this.memoizedTokenGenerator(email, role);
   }
 
   /**
    * Handle common error logging and throwing
-   * @param context Error context
-   * @param error Error object
-   * @param defaultMessage Default error message
-   * @throws InternalServerErrorException
    */
   private handleError(
     context: string,
@@ -60,11 +73,11 @@ export class UserService {
   ): never {
     this.loggerService.error(`${context}:`, error.message || error);
 
-    // Re-throw specific exceptions
     if (
       error instanceof BadRequestException ||
       error instanceof UnauthorizedException ||
-      error instanceof NotFoundException
+      error instanceof NotFoundException ||
+      error instanceof ConflictException
     ) {
       throw error;
     }
@@ -74,9 +87,6 @@ export class UserService {
 
   /**
    * Validate password confirmation
-   * @param password Primary password
-   * @param confirmPassword Confirmation password
-   * @throws BadRequestException if passwords don't match
    */
   private validatePasswordConfirmation(
     password: string,
@@ -88,58 +98,89 @@ export class UserService {
   }
 
   /**
-   * Register a new user
+   * Find user with caching
+   */
+  private async findUserWithCache(email: string): Promise<User> {
+    const cacheKey = `${this.USER_CACHE_PREFIX}${email}`;
+    
+    // Try to get from cache first
+    const cachedUser = await this.cacheManager.get<User>(cacheKey);
+    if (cachedUser) {
+      return cachedUser;
+    }
+
+    // If not in cache, get from database
+    const user = await this.userRepository.findByEmail(email);
+    if (!user) {
+      throw new NotFoundException('User not found.');
+    }
+
+    // Store in cache for future requests
+    await this.cacheManager.set(cacheKey, user, this.USER_CACHE_TTL);
+    return user;
+  }
+
+  /**
+   * Register a new user with optimized parallel operations
    */
   async create(createUserInput: RegistrationFields): Promise<Response> {
     const { email, phone, password, confirmPassword } = createUserInput;
 
     this.validatePasswordConfirmation(password, confirmPassword);
 
-    const existingUser =
-      (await this.userRepository.findByIdentifier(email)) ||
-      (await this.userRepository.findByIdentifier(phone));
+    // Run user existence checks in parallel
+    const [existingUserByEmail, existingUserByPhone] = await Promise.all([
+      this.userRepository.findByIdentifier(email),
+      this.userRepository.findByIdentifier(phone)
+    ]);
 
-    if (existingUser) {
-      const conflictField =
-        existingUser.email === email ? 'email' : 'phone number';
+    if (existingUserByEmail || existingUserByPhone) {
+      const conflictField = existingUserByEmail ? 'email' : 'phone number';
       throw new ConflictException(`The ${conflictField} is already in use`);
     }
 
-    const role = UserRole.CLIENT;
-    const hashedPassword = await this.hashingService.hashPassword(password);
-    const verificationToken = this.generateVerificationToken(email, role);
-
     try {
-      await this.userRepository.createUser({
-        ...createUserInput,
-        password: hashedPassword,
-        role,
-        verificationToken,
-      });
-      this.sendVerificationEmail(email, verificationToken);
+      // Run password hashing and token generation in parallel
+      const [hashedPassword, verificationToken] = await Promise.all([
+        this.hashingService.hashPassword(password),
+        this.generateVerificationToken(email, UserRole.CLIENT)
+      ]);
+
+      // Create user and queue email sending in parallel
+      await Promise.all([
+        this.userRepository.createUser({
+          ...createUserInput,
+          password: hashedPassword,
+          role: UserRole.CLIENT,
+          verificationToken,
+        }),
+        this.userQueue.add('sendVerificationEmail', {
+          email,
+          otp: this.authJwtService.validateToken(verificationToken).otp
+        }, {
+          priority: 2,
+          attempts: 3
+        })
+      ]);
 
       return {
-        message:
-          'User created successfully, please verify your email with the OTP sent.',
+        message: 'User created successfully, please verify your email with the OTP sent.',
         status: HttpStatus.CREATED,
       };
     } catch (error) {
       return this.handleError(
         'Failed to create user',
         error,
-        'Failed to send OTP email',
+        'Failed to create user or send OTP email',
       );
     }
-}
-private async sendVerificationEmail(email: string, verificationToken: string): Promise<void> {
-  const otp = this.authJwtService.validateToken(verificationToken).otp;
-  await this.emailService.sendVerificationEmail(email, otp);
-}
+  }
+
   /**
-   * Verify user account
+   * Verify user account with optimized token validation
    */
   async verifyAccount(email: string, otp: string): Promise<Response> {
-    const user = await this.findUserByEmail(email);
+    const user = await this.findUserWithCache(email);
 
     try {
       const decoded = this.authJwtService.validateToken(user.verificationToken);
@@ -148,12 +189,19 @@ private async sendVerificationEmail(email: string, verificationToken: string): P
         throw new UnauthorizedException('Invalid OTP');
       }
 
-      await this.userRepository.updateUser(user.id, {
-        verified: true,
-        verificationToken: null,
-      });
+      await Promise.all([
+        this.userRepository.updateUser(user.id, {
+          verified: true,
+          verificationToken: null,
+        }),
+        this.userQueue.add('sendConfirmationEmail', { email }, {
+          priority: 1,
+          attempts: 3
+        })
+      ]);
 
-      await this.emailService.sendConfirmationEmail(user.email);
+      // Invalidate cache after update
+      await this.cacheManager.del(`${this.USER_CACHE_PREFIX}${email}`);
 
       return {
         message: 'User successfully verified',
@@ -169,21 +217,10 @@ private async sendVerificationEmail(email: string, verificationToken: string): P
   }
 
   /**
-   * Find user by email with error handling
-   */
-  private async findUserByEmail(email: string): Promise<User> {
-    const user = await this.userRepository.findByEmail(email);
-    if (!user) {
-      throw new NotFoundException('User not found.');
-    }
-    return user;
-  }
-
-  /**
-   * Initiate login process
+   * Optimized login process with parallel operations
    */
   async login(email: string, password: string): Promise<Response> {
-    const user = await this.findUserByEmail(email);
+    const user = await this.findUserWithCache(email);
 
     try {
       const isPasswordValid = await this.hashingService.comparePassword(
@@ -201,16 +238,20 @@ private async sendVerificationEmail(email: string, verificationToken: string): P
         );
       }
 
-      // Generate and send OTP
-      const verificationToken = this.generateVerificationToken(
-        email,
-        user.role,
-      );
-      await this.userRepository.updateUser(user.id, { verificationToken });
-      await this.emailService.sendTwoFactorAuthEmail(
-        email,
-        this.authJwtService.validateToken(verificationToken).otp,
-      );
+      // Generate token and update user in parallel
+      const verificationToken = this.generateVerificationToken(email, user.role);
+      const otp = this.authJwtService.validateToken(verificationToken).otp;
+
+      await Promise.all([
+        this.userRepository.updateUser(user.id, { verificationToken }),
+        this.userQueue.add('sendTwoFactorAuthEmail', { email, otp }, {
+          priority: 1,
+          attempts: 3
+        })
+      ]);
+
+      // Invalidate cache after update
+      await this.cacheManager.del(`${this.USER_CACHE_PREFIX}${email}`);
 
       return {
         message: 'We have sent an email with OTP (One-Time Password)',
@@ -226,35 +267,41 @@ private async sendVerificationEmail(email: string, verificationToken: string): P
   }
 
   /**
-   * Verify login with OTP
+   * Verify login with optimized token handling
    */
   async verifyLogin(email: string, otp: string): Promise<LoginResponse> {
-    const user = await this.findUserByEmail(email);
+    const user = await this.findUserWithCache(email);
 
     try {
       if (!user.verificationToken) {
         throw new UnauthorizedException(
-          'Unauthorized access, Initate login first to get verification token',
+          'Unauthorized access, Initiate login first to get verification token',
         );
       }
+
       const jwtData = this.authJwtService.validateToken(user.verificationToken);
 
       if (jwtData.email !== email || jwtData.otp !== otp) {
         throw new UnauthorizedException('Unauthorized access');
       }
 
-      const accessToken = this.authJwtService.generateToken(
-        { email: user.email, role: user.role },
-        process.env.JWT_EXPIRES_IN,
-      );
+      const [accessToken, refreshToken] = await Promise.all([
+        this.authJwtService.generateToken(
+          { email: user.email, role: user.role },
+          process.env.JWT_EXPIRES_IN,
+        ),
+        this.authJwtService.generateToken(
+          { id: user.id, email: user.email, role: user.role },
+          '7d',
+        )
+      ]);
 
-      const refreshToken = this.authJwtService.generateToken(
-        { id: user.id, email: user.email, role: user.role },
-        '7d',
-      );
       await this.userRepository.updateUser(user.id, {
         verificationToken: null,
       });
+
+      // Invalidate cache after update
+      await this.cacheManager.del(`${this.USER_CACHE_PREFIX}${email}`);
 
       return {
         accessToken,
@@ -272,25 +319,29 @@ private async sendVerificationEmail(email: string, verificationToken: string): P
   }
 
   /**
-   * Resend verification OTP
+   * Resend verification OTP with optimized token generation
    */
   async resendVerificationOtp(email: string): Promise<Response> {
-    const user = await this.findUserByEmail(email);
+    const user = await this.findUserWithCache(email);
 
     try {
       if (user.verified) {
         throw new BadRequestException('User is already verified.');
       }
 
-      // Generate new OTP and verification token
       const newVerificationToken = this.generateVerificationToken(email, user.role);
-      await this.userRepository.updateUser(user.id, { verificationToken: newVerificationToken });
+      const otp = this.authJwtService.validateToken(newVerificationToken).otp;
 
-      // Send new OTP email
-      await this.emailService.sendVerificationEmail(
-        email,
-        this.authJwtService.validateToken(newVerificationToken).otp,
-      );
+      await Promise.all([
+        this.userRepository.updateUser(user.id, { verificationToken: newVerificationToken }),
+        this.userQueue.add('sendVerificationEmail', { email, otp }, {
+          priority: 2,
+          attempts: 3
+        })
+      ]);
+
+      // Invalidate cache after update
+      await this.cacheManager.del(`${this.USER_CACHE_PREFIX}${email}`);
 
       return {
         message: 'Verification OTP resent successfully.',
@@ -306,19 +357,25 @@ private async sendVerificationEmail(email: string, verificationToken: string): P
   }
 
   /**
-   * Initiate password reset
+   * Initiate password reset with optimized email handling
    */
   async forgetPassword(email: string): Promise<Response> {
-    const user = await this.findUserByEmail(email);
+    const user = await this.findUserWithCache(email);
 
     try {
       const verificationToken = this.generateVerificationToken(email);
-      await this.userRepository.updateUser(user.id, { verificationToken });
+      const otp = this.authJwtService.validateToken(verificationToken).otp;
 
-      await this.emailService.sendForgetPasswordEmail(
-        email,
-        this.authJwtService.validateToken(verificationToken).otp,
-      );
+      await Promise.all([
+        this.userRepository.updateUser(user.id, { verificationToken }),
+        this.userQueue.add('sendForgetPasswordEmail', { email, otp }, {
+          priority: 2,
+          attempts: 3
+        })
+      ]);
+
+      // Invalidate cache after update
+      await this.cacheManager.del(`${this.USER_CACHE_PREFIX}${email}`);
 
       return {
         message: 'Password reset email sent successfully.',
@@ -340,7 +397,7 @@ private async sendVerificationEmail(email: string, verificationToken: string): P
     email: string,
     otp: string,
   ): Promise<VerificationResponse> {
-    const user = await this.findUserByEmail(email);
+    const user = await this.findUserWithCache(email);
 
     try {
       const decoded = this.authJwtService.validateToken(user.verificationToken);
@@ -364,47 +421,12 @@ private async sendVerificationEmail(email: string, verificationToken: string): P
   }
 
   /**
-   * Replace forgotten password
+   * Replace forgotten password with optimized validation
    */
   async replaceForgotPassword(input: NewPasswordInput): Promise<Response> {
-    this.validatePasswordResetInput(input);
-
     const { newPassword, confirmPassword, email, verificationToken } = input;
 
-    try {
-      // Validate verification token
-      const decodedData = this.authJwtService.validateToken(verificationToken);
-
-      if (decodedData.email !== email) {
-        throw new UnauthorizedException('Access denied');
-      }
-
-      // Validate passwords
-      this.validatePasswordConfirmation(newPassword, confirmPassword);
-
-      // Get and update user
-      const user = await this.findUserByEmail(email);
-      await this.updateUserPassword(user, newPassword);
-
-      return {
-        message: 'Password updated successfully',
-        status: HttpStatus.OK,
-      };
-    } catch (error) {
-      return this.handleError(
-        'Password replacement failed',
-        error,
-        'An unexpected error occurred during password reset',
-      );
-    }
-  }
-
-  /**
-   * Validate password reset input
-   */
-  private validatePasswordResetInput(input: NewPasswordInput): void {
-    const { newPassword, confirmPassword, email, verificationToken } = input;
-
+    // Validate required fields
     const missingFields = [
       !newPassword && 'newPassword',
       !confirmPassword && 'confirmPassword',
@@ -417,24 +439,39 @@ private async sendVerificationEmail(email: string, verificationToken: string): P
         `Missing required fields: ${missingFields.join(', ')}.`,
       );
     }
-  }
 
-  /**
-   * Update user password
-   */
-  private async updateUserPassword(
-    user: User,
-    newPassword: string,
-  ): Promise<void> {
-    const hashedPassword = await this.hashingService.hashPassword(newPassword);
+    try {
+      // Validate token and get user in parallel
+      const [decodedData, user] = await Promise.all([
+        this.authJwtService.validateToken(verificationToken),
+        this.findUserWithCache(email)
+      ]);
 
-    const updatedUser = await this.userRepository.updateUser(user.id, {
-      ...user,
-      password: hashedPassword,
-    });
+      if (decodedData.email !== email) {
+        throw new UnauthorizedException('Access denied');
+      }
 
-    if (!updatedUser) {
-      throw new InternalServerErrorException('Failed to update password.');
+      this.validatePasswordConfirmation(newPassword, confirmPassword);
+
+      const hashedPassword = await this.hashingService.hashPassword(newPassword);
+      await this.userRepository.updateUser(user.id, {
+        password: hashedPassword,
+        verificationToken: null
+      });
+
+      // Invalidate cache after update
+      await this.cacheManager.del(`${this.USER_CACHE_PREFIX}${email}`);
+
+      return {
+        message: 'Password updated successfully',
+        status: HttpStatus.OK,
+      };
+    } catch (error) {
+      return this.handleError(
+        'Password replacement failed',
+        error,
+        'An unexpected error occurred during password reset',
+      );
     }
   }
 }

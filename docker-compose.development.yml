@@ -5,7 +5,7 @@ services:
       dockerfile: Dockerfile
     container_name: fire_extinguisher_backend
     env_file:
-      - env.production
+      - env.development
     ports:
       - '3000:3000'
     networks:
@@ -13,6 +13,13 @@ services:
     depends_on:
       mysql:
         condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ['CMD', 'redis-server', '--ping']
+      interval: 10s
+      timeout: 5s
+      retries: 5  
 
   mysql:
     image: mysql:8.0
@@ -29,6 +36,19 @@ services:
       - app-network
     healthcheck:
       test: ['CMD', 'mysqladmin', 'ping', '-h', 'localhost']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:latest
+    container_name: fire_extinguisher_redis
+    ports:
+      - '6379:6379'
+    networks:
+      - app-network
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
       interval: 10s
       timeout: 5s
       retries: 5
