@@ -1,18 +1,20 @@
 import { Module, Logger } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { CacheModule } from '@nestjs/cache-manager';
+import { BullModule } from '@nestjs/bull';
 import { UserRepository } from './user.repository';
 import { User } from './entities/user.entity';
-import { DatabaseModule } from '../database/database.module';
-import { DataSource } from 'typeorm';
-import { UserResolver } from './user.resolver';
 import { UserService } from './user.service';
 import { HashingService } from './hashing.service';
-import { EmailModule } from '../email/email.module';
 import { AuthJwtService } from './jwt.service';
-import { JwtModule } from '@nestjs/jwt';
 import type { RedisClientOptions } from 'redis';
-import redisStore  from 'cache-manager-redis-store';
+import redisStore from 'cache-manager-redis-store';
+import { DatabaseModule } from '../database/database.module';
+import { EmailModule } from '../email/email.module';
+import { JwtModule } from '@nestjs/jwt';
+import { UserResolver } from './user.resolver';
+import { DataSource } from 'typeorm';
+import { Queue } from 'bull';
 
 @Module({
   imports: [
@@ -20,6 +22,9 @@ import redisStore  from 'cache-manager-redis-store';
     TypeOrmModule.forFeature([User]),
     EmailModule,
     JwtModule,
+    BullModule.registerQueue({
+      name: 'USER_QUEUE',
+    }),
     CacheModule.registerAsync<RedisClientOptions>({
       useFactory: () => ({
         store: redisStore,
@@ -46,6 +51,11 @@ import redisStore  from 'cache-manager-redis-store';
     UserResolver,
     AuthJwtService,
     Logger,
+    {
+      provide: 'USER_QUEUE',
+      useFactory: (queue: Queue) => queue,
+      inject: ['BullQueue_USER_QUEUE'],
+    },
   ],
   exports: [UserService, HashingService, UserRepository, AuthJwtService],
 })
