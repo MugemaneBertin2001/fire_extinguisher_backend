@@ -14,7 +14,6 @@ import { EmailModule } from '../email/email.module';
 import { JwtModule } from '@nestjs/jwt';
 import { UserResolver } from './user.resolver';
 import { DataSource } from 'typeorm';
-import { Queue } from 'bull';
 
 @Module({
   imports: [
@@ -51,11 +50,6 @@ import { Queue } from 'bull';
     UserResolver,
     AuthJwtService,
     Logger,
-    {
-      provide: 'USER_QUEUE',
-      useFactory: (queue: Queue) => queue,
-      inject: ['BullQueue_USER_EMAILS_QUEUE'],
-    },
   ],
   exports: [UserService, HashingService, UserRepository, AuthJwtService],
 })

@@ -6,6 +6,9 @@ import { Queue } from 'bull';
 import { InjectQueue } from '@nestjs/bull';
 import { catchError, timeout, retry } from 'rxjs/operators';
 import { AxiosError } from 'axios';
+import { Processor, Process } from '@nestjs/bull';
+import { Job } from 'bull';
+import { BullModule } from '@nestjs/bull';
 
 interface EmailJob {
   to: string;
@@ -15,6 +18,7 @@ interface EmailJob {
 }
 
 @Injectable()
+@Processor('USER_EMAILS_QUEUE')
 export class EmailService {
   private readonly logger = new Logger(EmailService.name, { timestamp: true });
   private readonly MAX_RETRIES = 3;
@@ -149,10 +153,12 @@ export class EmailService {
     }
   }
 
-  async sendVerificationEmail(to: string, otp: string): Promise<void> {
+  @Process('sendVerificationEmail')
+  async handleSendVerificationEmail(job: Job) {
+    const { email, otp } = job.data;
     const text = this.emailTemplateService.generateVerificationEmailTemplate(otp);
     await this.queueEmail({
-      to,
+      to: email,
       subject: 'Verify Your Email - FireTrack360',
       text,
     });
